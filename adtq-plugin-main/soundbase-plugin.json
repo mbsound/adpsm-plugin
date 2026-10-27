@@ -1,0 +1,698 @@
+{
+  "manifestVersion": 1,
+  "id": "shure-adtq",
+  "name": "Shure ADTQ",
+  "version": "0.4.0",
+  "license": "BUSL-1.1",
+  "repository": "https://github.com/soundbase-lab/shure-adtq",
+  "maintainers": [
+    {
+      "name": "Matt Dale",
+      "email": "matt.dale@soundbase.app"
+    }
+  ],
+  "platforms": [
+    "darwin-arm64",
+    "darwin-x64",
+    "win32-x64"
+  ],
+  "contract": {
+    "core": "1.4",
+    "modules": {
+      "ChannelMonitoring": "1.1",
+      "PropertyControl": "1.0"
+    }
+  },
+  "runtime": {
+    "type": "node",
+    "entrypoint": "main.js"
+  },
+  "deployment": [
+    "managed"
+  ],
+  "template": {
+    "name": "soundbase-plugin-template",
+    "version": "1.0.15"
+  },
+  "products": [
+    {
+      "deviceTypeId": "plugin:shure-adtq/adtq",
+      "manufacturer": {
+        "id": "shure",
+        "name": "Shure"
+      },
+      "model": {
+        "id": "p10t",
+        "name": "P10T",
+        "displayName": "Shure ADTQ"
+      },
+      "family": {
+        "id": "shure-psm",
+        "name": "PSM"
+      },
+      "capabilities": {
+        "meters": true,
+        "name": true,
+        "frequency": true,
+        "mute": true,
+        "gain": true,
+        "groupChannel": true,
+        "audioModes": true,
+        "rfEncryption": true
+      },
+      "traits": {
+        "isTransmitter": true,
+        "isIem": true,
+        "isRackDevice": true,
+        "channelCount": 4
+      },
+      "channelName": {
+        "maxLength": 8,
+        "uppercase": false,
+        "allowsSpaces": true,
+        "allowedChars": "^[\\x20-\\x7E]*$"
+      },
+      "layout": {
+        "meterStyle": "led",
+        "channel": [
+          {
+            "type": "meter",
+            "bind": "meters.af",
+            "metric": "AUDIO_LEVEL",
+            "label": "L",
+            "labelFrom": {
+              "bind": "audioModes.txMode",
+              "map": {
+                "mono": "M"
+              }
+            }
+          },
+          {
+            "type": "meter",
+            "bind": "meters.afR",
+            "metric": "AUDIO_LEVEL_RIGHT",
+            "label": "R",
+            "labelFrom": {
+              "bind": "audioModes.txMode",
+              "map": {
+                "mono": "M"
+              }
+            }
+          },
+          {
+            "type": "value",
+            "bind": "audioModes.txMode",
+            "label": "Audio"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.txPowerMode",
+            "label": "RF power"
+          },
+          {
+            "type": "value",
+            "bind": "gain",
+            "label": "Gain",
+            "unit": "dB",
+            "format": "integer"
+          },
+          {
+            "type": "indicator",
+            "bind": "mute",
+            "label": "RF mute",
+            "tone": "warning"
+          },
+          {
+            "type": "indicator",
+            "bind": "rfState",
+            "label": "RF on",
+            "tone": "success",
+            "region": "detail"
+          },
+          {
+            "type": "value",
+            "bind": "frequency",
+            "format": "frequency",
+            "unit": "MHz"
+          },
+          {
+            "type": "value",
+            "bind": "groupChannel.group",
+            "label": "G",
+            "format": "integer",
+            "region": "detail"
+          },
+          {
+            "type": "value",
+            "bind": "groupChannel.channel",
+            "label": "CH",
+            "format": "integer",
+            "region": "detail"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.afDots.left.bar",
+            "format": "integer",
+            "label": "L dots",
+            "unit": "/7",
+            "region": "detail"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.afDots.right.bar",
+            "format": "integer",
+            "label": "R dots",
+            "unit": "/7",
+            "region": "detail"
+          },
+          {
+            "type": "control",
+            "propertyId": "mute"
+          },
+          {
+            "type": "control",
+            "propertyId": "txPowerMode"
+          },
+          {
+            "type": "control",
+            "propertyId": "audioMode"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.tone.level",
+            "label": "Tone",
+            "unit": "dB",
+            "region": "detail"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.tone.frequency",
+            "label": "Tone frequency",
+            "unit": "Hz",
+            "format": "integer",
+            "region": "detail"
+          },
+          {
+            "type": "control",
+            "propertyId": "toneLevel"
+          },
+          {
+            "type": "control",
+            "propertyId": "toneFrequency"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.carrier.name",
+            "label": "Carrier",
+            "format": "text"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.input.source",
+            "label": "Input",
+            "format": "text"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.input.sensitivity",
+            "label": "Sensitivity",
+            "format": "text"
+          },
+          {
+            "type": "control",
+            "propertyId": "inputSource"
+          },
+          {
+            "type": "control",
+            "propertyId": "analogSensitivity"
+          }
+        ],
+        "device": [
+          {
+            "type": "value",
+            "bind": "deviceName",
+            "label": "Unit"
+          },
+          {
+            "type": "indicator",
+            "bind": "rfEncryption.enabled",
+            "label": "Encryption",
+            "tone": "info"
+          },
+          {
+            "type": "indicator",
+            "bind": "connection.connected",
+            "label": "Link",
+            "tone": "success"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.unit.band",
+            "label": "Band",
+            "format": "text"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.unit.serial",
+            "label": "Serial",
+            "format": "text"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.unit.operationalPreset",
+            "label": "Preset",
+            "format": "text"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.unit.rfPower",
+            "label": "RF power",
+            "format": "text"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.unit.fanMode",
+            "label": "Fan",
+            "format": "text"
+          },
+          {
+            "type": "indicator",
+            "bind": "x.shure-adtq.unit.panelLock",
+            "label": "Panel lock",
+            "tone": "info"
+          },
+          {
+            "type": "indicator",
+            "bind": "x.shure-adtq.unit.powerLock",
+            "label": "Power lock",
+            "tone": "info"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.unit.uptime",
+            "label": "Up",
+            "format": "text"
+          },
+          {
+            "type": "control",
+            "propertyId": "deviceName"
+          },
+          {
+            "type": "control",
+            "propertyId": "fanMode"
+          },
+          {
+            "type": "control",
+            "propertyId": "panelLock"
+          },
+          {
+            "type": "control",
+            "propertyId": "powerLock"
+          },
+          {
+            "type": "control",
+            "propertyId": "operationalPreset"
+          }
+        ]
+      }
+    },
+    {
+      "deviceTypeId": "plugin:shure-adtq/adtd",
+      "manufacturer": {
+        "id": "shure",
+        "name": "Shure"
+      },
+      "model": {
+        "id": "p10t",
+        "name": "P10T",
+        "displayName": "Shure ADTD"
+      },
+      "family": {
+        "id": "shure-psm",
+        "name": "PSM"
+      },
+      "capabilities": {
+        "meters": true,
+        "name": true,
+        "frequency": true,
+        "mute": true,
+        "gain": true,
+        "groupChannel": true,
+        "audioModes": true,
+        "rfEncryption": true
+      },
+      "traits": {
+        "isTransmitter": true,
+        "isIem": true,
+        "isRackDevice": true,
+        "channelCount": 2
+      },
+      "channelName": {
+        "maxLength": 8,
+        "uppercase": false,
+        "allowsSpaces": true,
+        "allowedChars": "^[\\x20-\\x7E]*$"
+      },
+      "layout": {
+        "meterStyle": "led",
+        "channel": [
+          {
+            "type": "meter",
+            "bind": "meters.af",
+            "metric": "AUDIO_LEVEL",
+            "label": "L",
+            "labelFrom": {
+              "bind": "audioModes.txMode",
+              "map": {
+                "mono": "M"
+              }
+            }
+          },
+          {
+            "type": "meter",
+            "bind": "meters.afR",
+            "metric": "AUDIO_LEVEL_RIGHT",
+            "label": "R",
+            "labelFrom": {
+              "bind": "audioModes.txMode",
+              "map": {
+                "mono": "M"
+              }
+            }
+          },
+          {
+            "type": "value",
+            "bind": "audioModes.txMode",
+            "label": "Audio"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.txPowerMode",
+            "label": "RF power"
+          },
+          {
+            "type": "value",
+            "bind": "gain",
+            "label": "Gain",
+            "unit": "dB",
+            "format": "integer"
+          },
+          {
+            "type": "indicator",
+            "bind": "mute",
+            "label": "RF mute",
+            "tone": "warning"
+          },
+          {
+            "type": "indicator",
+            "bind": "rfState",
+            "label": "RF on",
+            "tone": "success",
+            "region": "detail"
+          },
+          {
+            "type": "value",
+            "bind": "frequency",
+            "format": "frequency",
+            "unit": "MHz"
+          },
+          {
+            "type": "value",
+            "bind": "groupChannel.group",
+            "label": "G",
+            "format": "integer",
+            "region": "detail"
+          },
+          {
+            "type": "value",
+            "bind": "groupChannel.channel",
+            "label": "CH",
+            "format": "integer",
+            "region": "detail"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.afDots.left.bar",
+            "format": "integer",
+            "label": "L dots",
+            "unit": "/7",
+            "region": "detail"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.afDots.right.bar",
+            "format": "integer",
+            "label": "R dots",
+            "unit": "/7",
+            "region": "detail"
+          },
+          {
+            "type": "control",
+            "propertyId": "mute"
+          },
+          {
+            "type": "control",
+            "propertyId": "txPowerMode"
+          },
+          {
+            "type": "control",
+            "propertyId": "audioMode"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.tone.level",
+            "label": "Tone",
+            "unit": "dB",
+            "region": "detail"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.tone.frequency",
+            "label": "Tone frequency",
+            "unit": "Hz",
+            "format": "integer",
+            "region": "detail"
+          },
+          {
+            "type": "control",
+            "propertyId": "toneLevel"
+          },
+          {
+            "type": "control",
+            "propertyId": "toneFrequency"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.carrier.name",
+            "label": "Carrier",
+            "format": "text"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.input.source",
+            "label": "Input",
+            "format": "text"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.input.sensitivity",
+            "label": "Sensitivity",
+            "format": "text"
+          },
+          {
+            "type": "control",
+            "propertyId": "inputSource"
+          },
+          {
+            "type": "control",
+            "propertyId": "analogSensitivity"
+          }
+        ],
+        "device": [
+          {
+            "type": "value",
+            "bind": "deviceName",
+            "label": "Unit"
+          },
+          {
+            "type": "indicator",
+            "bind": "rfEncryption.enabled",
+            "label": "Encryption",
+            "tone": "info"
+          },
+          {
+            "type": "indicator",
+            "bind": "connection.connected",
+            "label": "Link",
+            "tone": "success"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.unit.band",
+            "label": "Band",
+            "format": "text"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.unit.serial",
+            "label": "Serial",
+            "format": "text"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.unit.operationalPreset",
+            "label": "Preset",
+            "format": "text"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.unit.rfPower",
+            "label": "RF power",
+            "format": "text"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.unit.fanMode",
+            "label": "Fan",
+            "format": "text"
+          },
+          {
+            "type": "indicator",
+            "bind": "x.shure-adtq.unit.panelLock",
+            "label": "Panel lock",
+            "tone": "info"
+          },
+          {
+            "type": "indicator",
+            "bind": "x.shure-adtq.unit.powerLock",
+            "label": "Power lock",
+            "tone": "info"
+          },
+          {
+            "type": "value",
+            "bind": "x.shure-adtq.unit.uptime",
+            "label": "Up",
+            "format": "text"
+          },
+          {
+            "type": "control",
+            "propertyId": "deviceName"
+          },
+          {
+            "type": "control",
+            "propertyId": "fanMode"
+          },
+          {
+            "type": "control",
+            "propertyId": "panelLock"
+          },
+          {
+            "type": "control",
+            "propertyId": "powerLock"
+          },
+          {
+            "type": "control",
+            "propertyId": "operationalPreset"
+          }
+        ]
+      }
+    }
+  ],
+  "deviceConfigFields": [
+    {
+      "id": "host",
+      "type": "textinput",
+      "label": "IP address",
+      "required": true,
+      "manualOnly": true,
+      "help": "The ADTQ's address on the control network, as shown on its front panel or in Wireless Workbench. Its control port and identity are discovered from the unit itself."
+    }
+  ],
+  "pluginConfigFields": [
+    {
+      "id": "discoveryNote",
+      "type": "static-text",
+      "label": "Discovery",
+      "help": "ADTQ units on this machine's network segment are found automatically by SLP multicast (UDP 8427), the same way Wireless Workbench finds them. Units on other subnets can be asked directly by listing their addresses below, or added by IP address."
+    },
+    {
+      "id": "addresses",
+      "type": "textinput",
+      "label": "Additional ADTQ addresses",
+      "default": "",
+      "help": "Comma-separated IP addresses to ask directly, for units that multicast does not reach."
+    },
+    {
+      "id": "pollIntervalMs",
+      "type": "number",
+      "label": "Refresh interval",
+      "unit": "ms",
+      "default": 2000,
+      "min": 500,
+      "max": 30000,
+      "step": 100,
+      "help": "How often every channel's settings are re-read from the unit. Changes the unit pushes itself arrive at once regardless."
+    },
+    {
+      "id": "meterIntervalMs",
+      "type": "number",
+      "label": "Meter interval",
+      "unit": "ms",
+      "default": 100,
+      "min": 50,
+      "max": 1000,
+      "step": 10,
+      "help": "How often the audio meters are read. Each read costs the unit about 30 ms of replies; 100 ms is a smooth meter with headroom."
+    },
+    {
+      "id": "simulate",
+      "type": "checkbox",
+      "label": "Simulate an ADTQ",
+      "default": false,
+      "help": "Adds a simulated four-channel unit that speaks the real protocol on this machine, for trying the workflow with no hardware. It never talks to a real device."
+    }
+  ],
+  "stateKeys": [
+    "deviceName",
+    "connection",
+    "channelName",
+    "frequency",
+    "groupChannel",
+    "mute",
+    "rfState",
+    "gain",
+    "audioModes",
+    "rfEncryption",
+    "meters",
+    {
+      "key": "x.shure-adtq.txPowerMode",
+      "scope": "channel",
+      "op": "merge"
+    },
+    {
+      "key": "x.shure-adtq.afDots",
+      "scope": "channel",
+      "op": "merge"
+    },
+    {
+      "key": "x.shure-adtq.unit",
+      "scope": "device",
+      "op": "replace"
+    },
+    {
+      "key": "x.shure-adtq.tone",
+      "scope": "channel",
+      "op": "merge"
+    },
+    {
+      "key": "x.shure-adtq.carrier",
+      "scope": "channel",
+      "op": "merge"
+    },
+    {
+      "key": "x.shure-adtq.input",
+      "scope": "channel",
+      "op": "merge"
+    }
+  ]
+}
