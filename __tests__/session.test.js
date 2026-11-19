@@ -233,3 +233,31 @@ test('closing sends the disconnect sequence and the fake forgets the session', a
   await left;
   assert.equal(fake.sessions.size, 0);
 });
+
+test('a unit the standing browse has just heard is connected to without a second SLP round', async (t) => {
+  const fake = await startFake(t);
+  fake.answerSlp = false; // any SLP lookup now would fail
+  const device = await connect(t, fake, {
+    lookup: (host) => ({ ip: host, port: fake.controlPort, cid: FAKE_CID, cidText: 'DD2D453E-0000-11DD-A000-000EDDCCCCCC', fctn: 'ADTQ', uacn: 'ADTQ G57 NACLOCK' }),
+  });
+  assert.equal(device.identity.port, fake.controlPort);
+  assert.equal(device.connected, true);
+});
+
+test('a unit that goes silent drops the session in seconds, not after every read has timed out', async (t) => {
+  const fake = await startFake(t);
+  const device = await connect(t, fake, { session: { ...FAST, requestTimeoutMs: 20000, deadMs: 400 } });
+  let dropped = false;
+  device.on('dropped', () => { dropped = true; });
+  device.on('error', () => {});
+  // idle and silent is not dead: nothing was asked, so nothing is owed
+  fake.silent = true;
+  await new Promise((resolve) => setTimeout(resolve, 900));
+  assert.equal(dropped, false, 'an idle session is left alone');
+  const t0 = Date.now();
+  const read = device.readChannels([1]);
+  await new Promise((resolve) => device.once('dropped', resolve));
+  assert.ok(Date.now() - t0 < 2000, `dropped after ${Date.now() - t0} ms`);
+  const all = await read;
+  assert.equal(all.unanswered, all.asked);
+});

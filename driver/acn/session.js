@@ -54,7 +54,7 @@ import {
   sdtPdus,
 } from './pdu.js';
 import { SLP_GROUP, SLP_PORT, SHURE_CID_TAIL, buildAdvert } from './slp.js';
-import { delay, localIpToward } from '../netutil.js';
+import { delay, localIpToward, routeLocalIp } from '../netutil.js';
 
 export const TERMINAL_DMP_VECTORS = new Set([DMP.GET_REPLY, DMP.GET_FAIL, DMP.SET_FAIL]);
 const GET_ANSWERS = new Set([DMP.GET_REPLY, DMP.GET_FAIL]);
@@ -80,6 +80,7 @@ export class AcnSession extends EventEmitter {
    * @param {number} [options.connectTimeoutMs=20000]
    * @param {number} [options.writeGateMs=800] settle time before the first DMP
    * @param {number} [options.requestTimeoutMs=3000]
+   * @param {number} [options.deadMs=10000] requests pending this long with nothing at all heard from the device end the session
    * @param {(level: string, msg: string) => void} [options.log]
    */
   constructor(options) {
@@ -87,13 +88,15 @@ export class AcnSession extends EventEmitter {
     const {
       host, port, deviceCid, localIp, slpPort = SLP_PORT, multicast = true, unicastSlp = false,
       advertPulses = 3, advertGapMs = 120, joinDelayMs = 3000, connectTimeoutMs = 20000,
-      writeGateMs = 800, requestTimeoutMs = 3000, log = noop,
+      writeGateMs = 800, requestTimeoutMs = 3000, deadMs = 10000, log = noop,
     } = options;
     if (!host || !port) throw new Error('AcnSession needs host and port');
     if (!deviceCid || deviceCid.length !== 16) throw new Error('AcnSession needs the 16-byte device CID');
     this.host = host;
     this.port = port;
     this.deviceCid = Buffer.from(deviceCid);
+    // a guess from the interface table until open() asks the routing table
+    this.localIpGiven = Boolean(localIp);
     this.localIp = localIp ?? localIpToward(host);
     this.slpPort = slpPort;
     this.multicast = multicast;
@@ -104,6 +107,7 @@ export class AcnSession extends EventEmitter {
     this.connectTimeoutMs = connectTimeoutMs;
     this.writeGateMs = writeGateMs;
     this.requestTimeoutMs = requestTimeoutMs;
+    this.deadMs = deadMs;
     this.log = log;
 
     this.cid = generateCid();
@@ -141,6 +145,8 @@ export class AcnSession extends EventEmitter {
     this.lastSlp = 0;
     this.lastKeepalive = 0;
     this.keepaliveTimer = null;
+    // when the oldest request since the device was last heard went out; null while it is answering
+    this.awaitingSince = null;
 
     this.waiters = new Map(); // addr -> Set<{ accepts: Set<vector>, resolve }>
     this.stats = { sent: 0, received: 0, decoded: 0, undecodable: 0, naks: 0 };
@@ -151,6 +157,10 @@ export class AcnSession extends EventEmitter {
   /** Runs the prologue and resolves once DMP may be sent. */
   async open() {
     if (this.sock) throw new Error('session already opened');
+    // The advert names our address and the unit talks back to it, so it has to be the address
+    // the JOIN will really leave from: the routing table's answer, not the first adapter's.
+    if (!this.localIpGiven) this.localIp = (await routeLocalIp(this.host)) ?? this.localIp;
+    if (this.closed) throw new Error('session closed before it opened');
     this.sock = await this.bind(0);
     this.sock.on('message', (msg) => this.onDatagram(msg));
     this.sock.on('error', (err) => this.fail(err));
@@ -208,6 +218,12 @@ export class AcnSession extends EventEmitter {
       this.log('debug', `could not bind SLP :${this.slpPort} (${err.message}); advertising from an ephemeral port`);
       this.slpSock = await this.bind(0);
     }
+    if (this.closed) {
+      // closed while the bind was in flight: teardown has run and will not see this socket
+      this.slpSock.close();
+      this.slpSock = null;
+      return;
+    }
     this.slpSock.on('error', noop);
     this.slpSock.on('message', noop);
     try {
@@ -237,6 +253,12 @@ export class AcnSession extends EventEmitter {
   keepalive() {
     if (this.closed) return;
     const now = Date.now();
+    if (this.ready && this.awaitingSince !== null && now - this.awaitingSince > this.deadMs) {
+      // requests are going out and not one datagram has come back: the unit is gone (power, cable,
+      // a reboot). Waiting for every read to time out in turn takes minutes; say so now.
+      this.fail(new Error(`nothing heard from ${this.host} for ${Math.round((now - this.awaitingSince) / 1000)} s`));
+      return;
+    }
     if (now - this.lastSlp > 4000) this.sendAdvert();
     if (this.joined && now - this.lastKeepalive > 1400) {
       this.ackDevice();
@@ -333,6 +355,7 @@ export class AcnSession extends EventEmitter {
   onDatagram(data) {
     if (this.closed) return;
     this.stats.received += 1;
+    this.awaitingSince = null;
     const root = rootParse(data);
     if (!root) return;
     // the device coalesces its cumulative ack and its reliable DECL09 into
@@ -501,6 +524,8 @@ export class AcnSession extends EventEmitter {
           set.delete(waiter);
           if (!set.size) this.waiters.delete(addr);
         }
+        // nothing left outstanding: an idle session is not a silent one
+        if (!this.waiters.size) this.awaitingSince = null;
         resolve(reply);
       };
       waiter.resolve = done;
@@ -508,6 +533,7 @@ export class AcnSession extends EventEmitter {
       timer.unref?.();
       if (!this.waiters.has(addr)) this.waiters.set(addr, new Set());
       this.waiters.get(addr).add(waiter);
+      if (this.awaitingSince === null) this.awaitingSince = Date.now();
       try {
         this.sendDmp(pdu);
       } catch (err) {

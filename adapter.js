@@ -152,8 +152,16 @@ function ensureBrowser(pluginConfig) {
   return browser;
 }
 
-const idleCheck = () => {
-  if (browser && Date.now() - lastDiscoverAt > BROWSE_IDLE_MS) browser.stop();
+let idleTimer = null;
+const armIdleCheck = () => {
+  if (idleTimer) return;
+  idleTimer = setTimeout(() => {
+    idleTimer = null;
+    if (!browser) return;
+    if (Date.now() - lastDiscoverAt > BROWSE_IDLE_MS) browser.stop();
+    else if (browser.running) armIdleCheck();
+  }, BROWSE_IDLE_MS + 1000);
+  idleTimer.unref?.();
 };
 
 export const discoveredDevice = (reply) => ({
@@ -179,7 +187,7 @@ export async function discoverDevices(pluginConfig = {}) {
   }
   if (env('SB_ADTQ_NO_DISCOVERY') === '1') return found;
   const b = ensureBrowser(pluginConfig);
-  setTimeout(idleCheck, BROWSE_IDLE_MS + 1000).unref?.();
+  armIdleCheck();
   for (const reply of b.devices()) found.push(discoveredDevice(reply));
   return found;
 }
@@ -188,6 +196,8 @@ export async function discoverDevices(pluginConfig = {}) {
 export async function shutdownDiscovery() {
   browser?.stop();
   browser = null;
+  if (idleTimer) clearTimeout(idleTimer);
+  idleTimer = null;
   await stopSimulator();
 }
 
@@ -314,12 +324,18 @@ class AdtqMonitoringAdapter {
       unicastSlp: this.simulated,
       session: this.simulated ? SIMULATED_SESSION : {},
       channels: this.channels,
+      // the browse that found the unit knows its port and CID; no second SLP round per device
+      lookup: this.simulated ? null : (host) => (browser?.running ? browser.lookup(host) : null),
       log: (level, message) => this.log(level, message),
     });
     unit.on('change', (change) => this.applyChange(change));
-    unit.on('dropped', () => this.fatal(new Error(`the control session with the ADTQ at ${this.host} dropped`)));
+    let why = null;
+    unit.on('dropped', () => this.fatal(new Error(`the control session with the ADTQ at ${this.host} dropped${why ? ` (${why})` : ''}`)));
     unit.on('leaving', () => this.fatal(new Error(`the ADTQ at ${this.host} left the session`)));
-    unit.on('error', (err) => this.log('warn', `session: ${err?.message || err}`));
+    unit.on('error', (err) => {
+      why = err?.message || String(err);
+      this.log('warn', `session: ${why}`);
+    });
     this.unit = unit;
     this.identity = await unit.connect();
     if (channelsFor(this.identity.model) !== this.channels) {

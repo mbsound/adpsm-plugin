@@ -5,6 +5,7 @@
 import { EventEmitter } from 'node:events';
 import * as P from './properties.js';
 import { AcnSession } from '../acn/session.js';
+import { onLocalSubnet } from '../netutil.js';
 import { DMP, DMP_FAIL_REASON } from '../acn/pdu.js';
 import { SLP_PORT, describeUacn, slpDiscover } from '../acn/slp.js';
 import {
@@ -88,9 +89,10 @@ export class AdtqDevice extends EventEmitter {
    * @param {boolean} [options.multicast=true]
    * @param {boolean} [options.unicastSlp=false]
    * @param {object} [options.session] extra AcnSession options (timing overrides)
+   * @param {(host: string) => object|null} [options.lookup] a recent SLP reply for the host, if a standing browse has one
    * @param {(level: string, msg: string) => void} [options.log]
    */
-  constructor({ host, slpPort = SLP_PORT, multicast = true, unicastSlp = false, session = {}, channels = null, log = noop }) {
+  constructor({ host, slpPort = SLP_PORT, multicast = true, unicastSlp = false, session = {}, channels = null, lookup = null, log = noop }) {
     super();
     this.host = host;
     // the channel count is taken from the model the unit advertises, unless given
@@ -100,6 +102,7 @@ export class AdtqDevice extends EventEmitter {
     this.multicast = multicast;
     this.unicastSlp = unicastSlp;
     this.sessionOptions = session;
+    this.lookup = lookup;
     this.log = log;
     this.identity = null;
     this.session = null;
@@ -113,7 +116,9 @@ export class AdtqDevice extends EventEmitter {
   /** SLP discovery, then the session prologue. Resolves with the identity. */
   async connect() {
     if (this.session) throw new Error('already connected');
-    const found = await discoverAdtq(this.host, { slpPort: this.slpPort, multicast: this.multicast, log: this.log });
+    // A standing browse that heard the unit seconds ago already holds its port and CID; asking
+    // the segment again per unit makes every Shure device on it answer once per device opened.
+    const found = this.lookup?.(this.host) ?? (await discoverAdtq(this.host, { slpPort: this.slpPort, multicast: this.multicast, log: this.log }));
     // an ADTD has two channels; asking it for four leaves reads that are never answered
     this.channels = this.channelsGiven ?? channelsFor(found.fctn);
     this.identity = {
@@ -127,6 +132,11 @@ export class AdtqDevice extends EventEmitter {
       name: found.uacn,
       ...describeUacn(found.uacn),
     };
+    if (!onLocalSubnet(this.host)) {
+      this.log('warn', `${this.host} was found by SLP but is outside the subnet of every adapter on this machine. ` +
+        'If it is on the same network, the subnet masks disagree (the unit on 255.252.0.0 and this computer on a narrower mask, or the reverse); ' +
+        'set this adapter to the mask the units use, or the session request will go to the default gateway and never reach the unit.');
+    }
     this.log('info', `${this.host}: ${found.fctn ?? '?'} "${found.uacn ?? '?'}" port ${found.port} cid ${found.cidText}`);
     const session = new AcnSession({
       host: this.host,

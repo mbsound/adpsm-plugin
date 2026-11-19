@@ -11,8 +11,13 @@ import {
   cidToString,
   describeUacn,
   parseSlpReply,
+  SLP_GROUP,
+  SlpBrowser,
+  slpDiscover,
 } from '../driver/acn/slp.js';
-import { localIpToward, parseAddressList, sameSubnet } from '../driver/netutil.js';
+import dgram from 'node:dgram';
+import { FakeAdtq } from '../driver/fake/fake-adtq.js';
+import { localAddresses, localIpToward, onLocalSubnet, parseAddressList, routeLocalIp, sameSubnet } from '../driver/netutil.js';
 
 const CID = Buffer.from('71ea5337000011dda000000eddcccccc', 'hex');
 
@@ -86,5 +91,67 @@ test('the local interface facing a target, and address lists', () => {
   assert.equal(localIpToward('not-an-ip', ifaces), null);
   assert.ok(sameSubnet('10.10.1.1', '10.10.200.9', '255.255.0.0'));
   assert.ok(!sameSubnet('10.10.1.1', '10.11.1.1', '255.255.0.0'));
+  // 255.252.0.0, the mask these units are usually deployed on: 10.240.0.0 - 10.243.255.255
+  assert.ok(sameSubnet('10.240.0.1', '10.243.255.254', '255.252.0.0'));
+  assert.ok(!sameSubnet('10.243.255.254', '10.244.0.1', '255.252.0.0'));
+  const nic = (address, netmask) => ({ address, netmask, family: 'IPv4', internal: false });
+  assert.ok(onLocalSubnet('10.243.1.1', { en6: [nic('10.242.240.2', '255.252.0.0')] }));
+  assert.ok(!onLocalSubnet('10.243.1.1', { en6: [nic('10.242.240.2', '255.255.0.0')] }), 'a computer left on /16 does not reach a unit elsewhere in the /14');
   assert.deepEqual(parseAddressList(' 10.10.1.175, 10.10.1.176;bogus 10.10.1.175'), ['10.10.1.175', '10.10.1.176']);
+});
+
+test('the address the routing table sends from, for a session\'s advert', async () => {
+  assert.equal(await routeLocalIp('127.0.0.1'), '127.0.0.1');
+  assert.equal(await routeLocalIp('not-an-ip'), null);
+});
+
+const settle = (ms) => new Promise((resolve) => setTimeout(resolve, ms));
+
+test('the group request leaves by every interface, not only the last one set', async (t) => {
+  // Regression: one socket whose multicast interface was switched between sends put every
+  // request on the last interface, because Node defers the send itself to the next tick.
+  const external = localAddresses()[0];
+  if (process.platform !== 'darwin' || !external) return t.skip('needs two multicast interfaces with per-interface delivery');
+  const port = 40000 + Math.floor(Math.random() * 20000);
+  const heardOn = {};
+  for (const ip of [external, '127.0.0.1']) {
+    const sock = dgram.createSocket({ type: 'udp4', reuseAddr: true });
+    await new Promise((resolve) => sock.bind(port, resolve));
+    sock.addMembership(SLP_GROUP, ip);
+    heardOn[ip] = 0;
+    sock.on('message', () => { heardOn[ip] += 1; });
+    t.after(() => sock.close());
+  }
+  // loopback last: the order that used to starve the external interface
+  await slpDiscover({ port, localIp: [external, '127.0.0.1'], timeoutMs: 300 });
+  assert.ok(heardOn[external] >= 1, `the request left by ${external}`);
+  assert.ok(heardOn['127.0.0.1'] >= 1, 'the request left by loopback');
+});
+
+test('the standing browse keeps its sockets, finds a unit, serves lookups and forgets a silent one', async (t) => {
+  const fake = new FakeAdtq();
+  await fake.listen();
+  t.after(() => fake.stop());
+  const browser = new SlpBrowser({ targets: ['127.0.0.1'], multicast: false, port: fake.slpPort, intervalMs: 60, expireMs: 300 });
+  t.after(() => browser.stop());
+  const lost = [];
+  browser.on('lost', (r) => lost.push(r));
+  browser.start();
+  await settle(200);
+  const first = browser.set;
+  assert.ok(first, 'sockets are open');
+  assert.equal(browser.devices().length, 1);
+  const hit = browser.lookup('127.0.0.1');
+  assert.equal(hit?.port, fake.controlPort);
+  assert.equal(hit?.cidText, 'DD2D453E-0000-11DD-A000-000EDDCCCCCC');
+  assert.equal(browser.lookup('10.9.9.9'), null);
+  await settle(200);
+  assert.equal(browser.set, first, 'the same sockets serve every round: no join and leave per round');
+  fake.answerSlp = false;
+  await settle(500);
+  assert.equal(browser.devices().length, 0);
+  assert.equal(lost.length, 1);
+  assert.equal(browser.lookup('127.0.0.1'), null, 'a stale entry is not offered to a connect');
+  browser.stop();
+  assert.equal(browser.set, null, 'stopping closes the sockets');
 });

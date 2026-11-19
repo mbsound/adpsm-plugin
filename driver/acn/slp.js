@@ -189,35 +189,78 @@ const bindSocket = (port, options = {}) =>
     });
   });
 
+const closeAll = (socks) => {
+  for (const s of socks) {
+    try {
+      s.close();
+    } catch {
+      // already closed
+    }
+  }
+};
+
+/** The interfaces a browse asks and listens on: the one facing the first target, then every other. */
+const browseAddresses = (targets, localIp) =>
+  localIp ? [localIp].flat() : [...new Set([localIpToward(targets[0] ?? SLP_GROUP), ...localAddresses()].filter(Boolean))];
+
 /**
- * Opens the sockets discovery listens on: the well-known SLP port when it can
- * be had, always an ephemeral one. Both join the multicast group on every
- * interface in `localIps` (best effort; no network is a normal case).
+ * Opens the sockets discovery uses:
+ *
+ *   - one per interface in `localIps`, on the well-known SLP port when it can
+ *     be had, with that interface as its multicast egress and a membership of
+ *     the group on it. The group request for an interface leaves by its own
+ *     socket. One shared socket whose egress is switched between sends does
+ *     not work: Node defers a send to the next tick, so every request left by
+ *     whichever interface was set last and the others were never asked.
+ *   - one on an ephemeral port for the addresses asked directly (and for a
+ *     fake, which answers to the source port).
+ *
+ * Best effort throughout; no network is a normal case.
  */
 async function openSlpSockets({ port, localIps, multicast, log }) {
-  const socks = [];
-  try {
-    socks.push(await bindSocket(port));
-  } catch (err) {
-    log?.('debug', `could not bind :${port} (${err.message}); replies on it will be missed`);
-  }
-  socks.push(await bindSocket(0));
-  for (const sock of socks) {
-    try {
-      sock.setMulticastTTL(4);
-    } catch {
-      // not a multicast-capable socket; nothing to set
-    }
-    if (!multicast) continue;
+  const direct = await bindSocket(0);
+  const socks = [direct];
+  const ifaces = [];
+  let portRefused = false;
+  if (multicast) {
     for (const localIp of localIps) {
+      let sock;
+      try {
+        sock = await bindSocket(port);
+      } catch (err) {
+        if (!portRefused) log?.('warn', `could not bind UDP/${port} (${err.message}); another program holds it exclusively and replies sent to it will be missed`);
+        portRefused = true;
+        try {
+          sock = await bindSocket(0);
+        } catch {
+          continue;
+        }
+      }
+      try {
+        sock.setMulticastTTL(4);
+        sock.setMulticastInterface(localIp);
+      } catch (err) {
+        // an interface that will not send multicast (a tunnel) is skipped
+        log?.('debug', `no multicast on ${localIp}: ${err.message}`);
+        closeAll([sock]);
+        continue;
+      }
       try {
         sock.addMembership(SLP_GROUP, localIp);
       } catch (err) {
         log?.('debug', `multicast membership failed on ${localIp}: ${err.message}`);
       }
+      socks.push(sock);
+      ifaces.push({ sock, localIp });
     }
   }
-  return socks;
+  return { socks, ifaces, direct };
+}
+
+/** One round of requests: the group on every interface, and each direct target. */
+function sendRequests({ ifaces, direct }, rqst, port, targets) {
+  for (const { sock } of ifaces) sock.send(rqst, port, SLP_GROUP, () => {});
+  for (const t of targets) if (t !== SLP_GROUP) direct.send(rqst, port, t, () => {});
 }
 
 /**
@@ -228,7 +271,7 @@ async function openSlpSockets({ port, localIps, multicast, log }) {
  * @param {boolean} [options.multicast=true] also ask the whole segment
  * @param {number} [options.port=8427] the SLP port the devices listen on
  * @param {number} [options.timeoutMs=1500]
- * @param {string} [options.localIp] the one interface to ask on; every interface when absent
+ * @param {string|string[]} [options.localIp] the interface(s) to ask on; every interface when absent
  * @param {boolean} [options.stopWhenTargetsAnswer] resolve as soon as every
  *   target has answered instead of waiting out the timeout; defaults to true
  *   for a unicast-only ask and false for a browse, which wants the whole segment
@@ -244,32 +287,23 @@ export async function slpDiscover({
   stopWhenTargetsAnswer = !multicast,
   log,
 } = {}) {
-  // the interface a target lives on, plus every other one: a unit on a second adapter answers there
-  const localIps = localIp ? [localIp] : [...new Set([localIpToward(targets[0] ?? SLP_GROUP), ...localAddresses()].filter(Boolean))];
-  const socks = await openSlpSockets({ port, localIps, multicast, log });
+  const set = await openSlpSockets({ port, localIps: browseAddresses(targets, localIp), multicast, log });
   const found = new Map();
   const rqst = buildSrvRqst();
-  const destinations = [];
-  if (multicast) destinations.push(SLP_GROUP);
-  for (const t of targets) if (!destinations.includes(t)) destinations.push(t);
 
   return new Promise((resolve) => {
     let done = false;
+    let again = null;
     const finish = () => {
       if (done) return;
       done = true;
       clearTimeout(timer);
-      for (const s of socks) {
-        try {
-          s.close();
-        } catch {
-          // already closed
-        }
-      }
+      clearTimeout(again);
+      closeAll(set.socks);
       resolve([...found.values()]);
     };
     const timer = setTimeout(finish, timeoutMs);
-    for (const s of socks) {
+    for (const s of set.socks) {
       s.on('message', (msg, rinfo) => {
         const reply = parseSlpReply(msg);
         if (!reply) return;
@@ -284,46 +318,50 @@ export async function slpDiscover({
           finish();
       });
       s.on('error', () => {});
-      for (const dst of destinations) {
-        if (dst !== SLP_GROUP) {
-          s.send(rqst, port, dst, () => {});
-          continue;
-        }
-        // the group request goes out of every interface, not only the default route's
-        for (const localIp of localIps) {
-          try {
-            s.setMulticastInterface(localIp);
-          } catch {
-            // an interface that will not send multicast is skipped
-          }
-          s.send(rqst, port, dst, () => {});
-        }
-      }
+    }
+    sendRequests(set, rqst, port, targets);
+    // The group was joined a moment ago. On a network with IGMP snooping the
+    // switch may not be forwarding it to this port yet, and the reply to the
+    // first request is then lost; a one-shot lookup asks once more.
+    if (multicast && timeoutMs >= 900) {
+      again = setTimeout(() => {
+        if (!done) sendRequests(set, rqst, port, []);
+      }, 400);
     }
   });
 }
 
 /**
- * A standing SLP browse: asks the segment every `intervalMs`, keeps a table
- * of who answered and when, and forgets anyone silent for `expireMs`. The
- * adapter's discoverDevices reads the table and returns at once, which is
- * what a once-a-second poll from the shell needs.
+ * A standing SLP browse: holds its sockets and group memberships open, asks
+ * the segment every `intervalMs`, keeps a table of who answered and when, and
+ * forgets anyone silent for `expireMs`. The adapter's discoverDevices reads
+ * the table and returns at once, which is what a once-a-second poll from the
+ * shell needs.
+ *
+ * The sockets stay open between rounds on purpose. Opening and closing them
+ * every round joined and left the multicast group every few seconds: a
+ * snooping switch was asked to start forwarding the group at the very moment
+ * the request went out, replies that beat it were lost, and so was anything
+ * that arrived after the listening window had shut. They are reopened only
+ * when the machine's interfaces change.
  */
 export class SlpBrowser extends EventEmitter {
-  constructor({ targets = [], multicast = true, port = SLP_PORT, intervalMs = 3000, expireMs = 15000, timeoutMs = 1200, log, filter } = {}) {
+  constructor({ targets = [], multicast = true, port = SLP_PORT, intervalMs = 3000, expireMs = 15000, log, filter } = {}) {
     super();
     this.targets = targets;
     this.multicast = multicast;
     this.port = port;
     this.intervalMs = intervalMs;
     this.expireMs = expireMs;
-    this.timeoutMs = timeoutMs;
     this.log = log;
     this.filter = filter ?? (() => true);
     this.table = new Map();
     this.timer = null;
-    this.inFlight = null;
+    this.ticking = false;
     this.running = false;
+    this.set = null;
+    this.setKey = null;
+    this.rqst = buildSrvRqst();
   }
 
   start() {
@@ -338,45 +376,83 @@ export class SlpBrowser extends EventEmitter {
     this.running = false;
     if (this.timer) clearInterval(this.timer);
     this.timer = null;
+    this.closeSockets();
+  }
+
+  closeSockets() {
+    if (this.set) closeAll(this.set.socks);
+    this.set = null;
+    this.setKey = null;
   }
 
   setTargets(targets) {
     this.targets = [...targets];
   }
 
-  tick() {
-    if (this.inFlight || !this.running) return;
-    this.inFlight = slpDiscover({
-      targets: this.targets,
-      multicast: this.multicast,
-      port: this.port,
-      timeoutMs: this.timeoutMs,
-      log: this.log,
-    })
-      .then((replies) => {
-        const now = Date.now();
-        for (const reply of replies) {
-          if (!this.filter(reply)) continue;
-          const key = reply.cidText ?? `${reply.ip}:${reply.port}`;
-          const known = this.table.get(key);
-          this.table.set(key, { ...reply, lastSeen: now, firstSeen: known?.firstSeen ?? now });
-          if (!known) this.emit('found', reply);
+  async tick() {
+    if (this.ticking || !this.running) return;
+    this.ticking = true;
+    try {
+      const localIps = browseAddresses(this.targets);
+      const key = localIps.join(',');
+      if (!this.set || key !== this.setKey) {
+        // first round, or an interface came or went (a cable, a DHCP lease)
+        this.closeSockets();
+        const set = await openSlpSockets({ port: this.port, localIps, multicast: this.multicast, log: this.log });
+        if (!this.running) {
+          closeAll(set.socks);
+          return;
         }
-        for (const [key, entry] of this.table) {
-          if (now - entry.lastSeen > this.expireMs) {
-            this.table.delete(key);
-            this.emit('lost', entry);
-          }
+        for (const s of set.socks) {
+          s.on('message', (msg, rinfo) => this.onMessage(msg, rinfo));
+          s.on('error', () => {});
         }
-      })
-      .catch((err) => this.log?.('warn', `SLP browse failed: ${err?.message || err}`))
-      .finally(() => {
-        this.inFlight = null;
-      });
+        this.set = set;
+        this.setKey = key;
+      }
+      sendRequests(this.set, this.rqst, this.port, this.targets);
+    } catch (err) {
+      this.log?.('warn', `SLP browse failed: ${err?.message || err}`);
+    } finally {
+      this.ticking = false;
+      this.prune();
+    }
+  }
+
+  onMessage(msg, rinfo) {
+    const reply = parseSlpReply(msg);
+    if (!reply || !this.filter(reply)) return;
+    const now = Date.now();
+    const key = reply.cidText ?? `${reply.ip}:${reply.port}`;
+    const known = this.table.get(key);
+    this.table.set(key, { ...reply, from: rinfo.address, lastSeen: now, firstSeen: known?.firstSeen ?? now });
+    if (!known) this.emit('found', reply);
+  }
+
+  prune(now = Date.now()) {
+    for (const [key, entry] of this.table) {
+      if (now - entry.lastSeen > this.expireMs) {
+        this.table.delete(key);
+        this.emit('lost', entry);
+      }
+    }
   }
 
   /** Everyone heard from within the expiry window. */
   devices() {
+    this.prune();
     return [...this.table.values()];
+  }
+
+  /**
+   * The unit at `ip`, when the browse heard it (with its CID) within
+   * `maxAgeMs`; null otherwise. Lets a connect skip its own SLP round.
+   */
+  lookup(ip, maxAgeMs = this.intervalMs * 2 + 1000) {
+    const now = Date.now();
+    for (const entry of this.table.values()) {
+      if ((entry.ip === ip || entry.from === ip) && entry.cid && now - entry.lastSeen <= maxAgeMs) return entry;
+    }
+    return null;
   }
 }
