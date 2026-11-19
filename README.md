@@ -1,22 +1,9 @@
 # Shure ADTQ — SoundBase plugin
 
 Puts a Shure **ADTQ** four-channel Axient Digital PSM transmitter into
-SoundBase's device monitoring, over the network, with no Wireless Workbench in
-the loop: every channel's name, frequency, group/channel, RF power, gain,
-audio mode and RF mute state on a card, and RF mute, frequency, RF power,
-audio mode and name writable from it.
-
-```
-SoundBase ──spawns──► plugin (node) ──UDP: SLP + ACN SDT/DMP──► ADTQ
-             HTTP/SSE                  the same protocol Workbench speaks
-```
-
-The plugin speaks ANSI E1.17 (ACN) directly — the SLP discovery, the SDT
-session handshake, the encrypted DMP property channel — ported from a
-reverse-engineered Python tool that mutes a real ADTQ, and pinned to that
-tool's bytes by test vectors. [docs/adtq-protocol.md](docs/adtq-protocol.md)
-is the wire; [docs/adtq-properties.md](docs/adtq-properties.md) is the property
-map and the evidence behind every address.
+SoundBase's device monitoring, over the network: every channel's name,
+frequency, group/channel, RF power, gain, audio mode and RF mute state on a
+card, and RF mute, frequency, RF power, audio mode and name writable from it.
 
 ---
 
