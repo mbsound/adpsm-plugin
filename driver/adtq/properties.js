@@ -41,9 +41,9 @@ export const OBJ = Object.freeze({
   CHAN_NAME: 0x08fb, // confirmed: string
   MODEL: 0x1000, // probable: string "ADXR-A"
   ENCRYPTION: 0x2000, // confirmed: 00 off, 03 on; device-wide (all channels read alike). Writable on channel 1; applied ~2 s after the SET
-  INPUT_SELECT: 0x017a, // per channel: 00 Rear Panel, 01 Dante (decoded capture 2026-10-27: Workbench SETs it both ways, the unit EVENTs it)
+  INPUT_SELECT: 0x017a, // per channel: 00 Rear Panel, 01 Dante (decoded capture 2026-10-27: the vendor software SETs it both ways, the unit EVENTs it)
   INPUT_STATE: 0x0179, // per channel, the unit's answer to INPUT_SELECT: 03 with Dante selected, 01 with Rear Panel (02 on an ADTQ)
-  ANALOG_SENSITIVITY: 0x0612, // per channel: 01 Line (+28 dBV FS), 00 Aux (+18 dBV FS) (capture: Workbench SET 01 for Line; 00 read on a channel on Aux)
+  ANALOG_SENSITIVITY: 0x0612, // per channel: 01 Line (+28 dBV FS), 00 Aux (+18 dBV FS) (capture: the vendor software SET 01 for Line; 00 read on a channel on Aux)
   TONE_FREQ_HZ: 0x0127, // confirmed by read on an ADTD (2026-10-26): 2-byte Hz, 400 default; the AD4Q's address
   TONE_LEVEL_DB: 0x0128, // confirmed by read on an ADTD: signed byte dB, -128 = Off; the AD4Q's address
 });
@@ -62,10 +62,10 @@ export const DEV = Object.freeze({
   UPTIME: 0x0100002b, // string: "0:07:08"
   BAND: 0x01070003, // string: "K54"
   PANEL_LOCK: 0x010c0010, // byte: 1 locked
-  // the RF block. An operational preset is a transmission-mode code: Workbench changes the preset
+  // the RF block. An operational preset is a transmission-mode code: the vendor software changes the preset
   // with one SET of RF_MODE_CODE (a decoded capture, 2026-10-26: SET 0x0107000b = 45 for "SC
   // narrowband"), the unit reboots to apply it, and RF_MODE_LIST is the codes the band offers, in
-  // Workbench's menu order (two observed pairs, 45 and 31 on an ADTD, 20 on an ADTQ, sit exactly
+  // the vendor software's menu order (two observed pairs, 45 and 31 on an ADTD, 20 on an ADTQ, sit exactly
   // where their menu entries do). OP_PRESET is a derived identifier (5 for 45, 3 for 31) that
   // refuses a SET. RF_POWER_TABLE maps every mode code to its Low/Normal/High power in mW.
   OP_PRESET: 0x01070052, // byte: preset identifier, read-only
@@ -75,9 +75,9 @@ export const DEV = Object.freeze({
 });
 /**
  * Operational presets by transmission-mode code. The codes are stable; which ones a unit offers
- * depends on its model and band (RF_MODE_LIST, in Workbench's menu order): an ADTD on K54 lists
+ * depends on its model and band (RF_MODE_LIST, in the vendor software's menu order): an ADTD on K54 lists
  * 11, the same ADTD on K60 lists 17 (33, 34, 8, 6, 27, 30 added after 31), an ADTQ on G57 lists
- * 15. Names were matched to codes from Workbench's menus on 2026-10-26/27; a code not named here
+ * 15. Names were matched to codes from the vendor software's menus on 2026-10-26/27; a code not named here
  * is shown as "Mode n" until a menu names it.
  */
 export const PRESET_NAMES = Object.freeze({

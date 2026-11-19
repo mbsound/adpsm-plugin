@@ -1,7 +1,7 @@
 // One ACN SDT session with a Shure device, held open for as long as the
-// caller wants it — the way Wireless Workbench holds one for the life of the
-// app. Ported from the validated Python engine (ADTQ Mute/engine/wwb_mirror.py
-// and adtq_mute.py's AdtqSession) with the same wire behaviour:
+// caller wants it — the way the vendor software holds one for the life of the
+// app. Ported from the validated Python engine (ADTQ Mute/engine and
+// adtq_mute.py's AdtqSession) with the same wire behaviour:
 //
 //   SLP advert x3 -> 3 s gap -> JOIN -> JOIN_ACCEPT / reciprocal JOIN ->
 //   key derivation -> early ack + proto-0x102 declaration ->
@@ -76,7 +76,7 @@ export class AcnSession extends EventEmitter {
    * @param {boolean} [options.unicastSlp=false] also advertise straight to the device (test fakes)
    * @param {number} [options.advertPulses=3]
    * @param {number} [options.advertGapMs=120]
-   * @param {number} [options.joinDelayMs=3000] the advert -> JOIN gap Workbench leaves
+   * @param {number} [options.joinDelayMs=3000] the advert -> JOIN gap the vendor software leaves
    * @param {number} [options.connectTimeoutMs=20000]
    * @param {number} [options.writeGateMs=800] settle time before the first DMP
    * @param {number} [options.requestTimeoutMs=3000]
@@ -111,7 +111,7 @@ export class AcnSession extends EventEmitter {
     this.log = log;
 
     this.cid = generateCid();
-    // a high random channel each session, as Workbench does
+    // a high random channel each session, as the vendor software does
     this.ourChan = 0x8000 | (randomBytes(1)[0] << 4);
     this.devChan = null;
 
@@ -186,8 +186,8 @@ export class AcnSession extends EventEmitter {
       await this.teardown();
       throw new Error(
         `Could not associate with ${this.host}:${this.port}. The device never answered the ` +
-          'session request: check that its CID is right and that nothing else (Wireless ' +
-          'Workbench, another copy of this plugin) holds the session.'
+          'session request: check that its CID is right and that nothing else (the vendor ' +
+          'software, another copy of this plugin) holds the session.'
       );
     }
     // the device drops writes issued into a half-open association; settle once here
@@ -323,7 +323,7 @@ export class AcnSession extends EventEmitter {
     const trailer = this.firstRel ? TRAILER_FIRST_RELIABLE : TRAILER_PLAIN;
     this.firstRel = false;
     this.unacked.set(this.relSeq, blocks);
-    // Workbench pins oldest-available at its first reliable seq
+    // The vendor software pins oldest-available at its first reliable seq
     const pkt = buildWrapper(this.cid, this.ourChan, tot, this.relSeq, this.firstRelSeq, blocks, true, trailer);
     this.sock?.send(pkt, this.port, this.host, noop);
     this.stats.sent += 1;
@@ -480,7 +480,7 @@ export class AcnSession extends EventEmitter {
     this.key = sessionKey(this.cid, this.deviceCid, this.ourChan, this.devChan);
     this.decoder = new DmpDecoder(this.key);
     this.log('debug', `joined: us 0x${this.ourChan.toString(16)} device 0x${this.devChan.toString(16)}`);
-    // early ack of the device's frontier, then declare 0x102 (Workbench order)
+    // early ack of the device's frontier, then declare 0x102 (the vendor software order)
     this.ackDevice();
     this.lastKeepalive = Date.now();
     this.sendReliable([clientBlock(1, PROTO_SDT, 0, mgmtDeclare())]);

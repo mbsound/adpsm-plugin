@@ -86,7 +86,7 @@ export function cidFromMac(mac) {
 }
 
 /**
- * The component advert Wireless Workbench multicasts before joining. The
+ * The component advert the vendor software multicasts before joining. The
  * device builds its table of known controllers from these and only fully
  * serves the ones it recognises. Byte-exact with the reference.
  */
@@ -140,7 +140,7 @@ const BAND = /^[A-Z](\d{1,2}[A-Z+]?)?$/;
 /**
  * What a unit's `acn-uacn` says it is. ACN calls the attribute a user-assigned
  * name, but nobody assigns it on Shure hardware: the unit fills it with its
- * model, its band and sometimes a variant tag that Wireless Workbench shows
+ * model, its band and sometimes a variant tag that the vendor software shows
  * nowhere. Every unit heard on one segment (2026-10-07):
  *
  *   ADTQ G57 NACLOCK   ADTD K54 NACLOCK   ULXD4Q G50 REV5   ULXD4D G50 REV2

@@ -605,7 +605,7 @@
       "label": "IP address",
       "required": true,
       "manualOnly": true,
-      "help": "The ADTQ's address on the control network, as shown on its front panel or in Wireless Workbench. Its control port and identity are discovered from the unit itself."
+      "help": "The ADTQ's address on the control network, as shown on its front panel. Its control port and identity are discovered from the unit itself."
     }
   ],
   "pluginConfigFields": [
@@ -613,7 +613,7 @@
       "id": "discoveryNote",
       "type": "static-text",
       "label": "Discovery",
-      "help": "ADTQ units on this machine's network segment are found automatically by SLP multicast (UDP 8427), the same way Wireless Workbench finds them. Units on other subnets can be asked directly by listing their addresses below, or added by IP address."
+      "help": "ADTQ units on this machine's network segment are found automatically by SLP multicast (UDP 8427). Units on other subnets can be asked directly by listing their addresses below, or added by IP address."
     },
     {
       "id": "addresses",

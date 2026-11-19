@@ -11,7 +11,7 @@ in-ear-monitor transmitter: a small network service that provides the unit to
 SoundBase over a versioned HTTP + SSE contract. SoundBase spawns it as a child
 process and supervises it — handshake, health, crash-restart, teardown. The
 plugin in turn holds one ACN (ANSI E1.17) session per unit, the protocol
-Wireless Workbench uses, and pushes the unit's state to SoundBase as it
+the vendor software uses, and pushes the unit's state to SoundBase as it
 changes.
 
 SoundBase is an RF coordination platform for live events. This plugin lands in
@@ -143,7 +143,7 @@ in SoundBase.
 **Exposing another property**
 
 > Identify it first: `npm run adtq -- watch <ip>` while changing the control
-> in Workbench on one channel, and state the expected address and value
+> in the vendor software on one channel, and state the expected address and value
 > before the second data point. Then add it to `CHANNEL_PROPS` in
 > `driver/adtq/properties.js` with its decoder, give the fake a plausible
 > value in `defaultProperties()`, map it to a state key in `emitAll()` (a core
@@ -164,7 +164,7 @@ in SoundBase.
 > Work outwards with the CLI: `discover` (does SLP answer, with a CID?),
 > `status` (does the session associate and read?), `mute` (does the write
 > land — CONFIRMED or NOT APPLIED?). NOT APPLIED with a live session usually
-> means Workbench is also holding one. No association at all means the CID,
+> means the vendor software is also holding one. No association at all means the CID,
 > the port, or a firewall on UDP/8427. `docs/adtq-protocol.md` lists the
 > silent failure modes.
 
@@ -179,4 +179,4 @@ in SoundBase.
   "Audio levels"). What distinguishes the three dB pairs is not, and the dB
   reference is unverified. A meter labelled with a scale or a meaning nobody
   has demonstrated is worse than none.
-- **Talking to a unit Workbench is controlling.** One controller at a time.
+- **Talking to a unit the vendor software is controlling.** One controller at a time.

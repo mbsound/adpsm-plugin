@@ -180,13 +180,13 @@ export function sdtPdus(sdt) {
 
 // -- SDT session PDUs ------------------------------------------------------------
 
-// channel parameters, verbatim from the Wireless Workbench template
+// channel parameters, verbatim from the vendor software template
 const JOIN_PARAMS = Buffer.from([0x00, 0x05, 0x00, 0x00, 0x02, 0x00, 0x32, 0x00, 0x14, 0xff]);
 
 /**
  * JOIN: the leader (`srcCid`) invites `memberCid` onto channel `chan`. The
  * reliable sequence base is advertised as `chan` itself, so the first
- * reliable wrapper is expected at chan+1 — Workbench's scheme, which the
+ * reliable wrapper is expected at chan+1 — the vendor software's scheme, which the
  * device's NAK logic assumes.
  */
 export function buildJoin(srcCid, memberCid, chan, mid = 1) {
@@ -297,7 +297,7 @@ export const mgmtAssociate = () => pduEncode(MGMT.ASSOCIATE, null, u32(PROTO_DMP
 export const mgmtDisassociate = () => pduEncode(MGMT.DISASSOCIATE, null, u32(PROTO_DMP), 1);
 export const sdtLeaving = () => pduEncode(SDT_VEC.LEAVING, null, Buffer.alloc(0), 1);
 
-// the root-layer leave Workbench sends after LEAVING; the tail is verbatim
+// the root-layer leave the vendor software sends after LEAVING; the tail is verbatim
 const LEAVE_TAIL = Buffer.from('b2b000010001207a06', 'hex');
 export const rootLeave = (srcCid, deviceCid) =>
   rootWrap(srcCid, pduEncode(SDT_VEC.NAK, null, Buffer.concat([Buffer.from(deviceCid), LEAVE_TAIL]), 1));
@@ -395,7 +395,7 @@ export function findCtrPos(keystream, ct, hint, back = 64, fwd = 2048) {
  * Encrypts one DMP PDU as a proto-0x102 client-block payload at stream
  * position `pos`: `01 01 <len> <nonce8> <ctr8> <ciphertext> <tag4>`. The
  * on-wire counter is ceil(pos/16) while the keystream is taken from floor —
- * exactly what Workbench does, and what the device expects.
+ * exactly what the vendor software does, and what the device expects.
  */
 export function encryptDmp(key, nonce8, pos, pdu) {
   const ct = aesCtrAt(key, nonce8, pos, pdu);

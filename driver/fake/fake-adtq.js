@@ -353,7 +353,7 @@ export class FakeAdtq extends EventEmitter {
         return true;
       }
       case DEV.RF_MODE_CODE: {
-        // the preset, as Workbench writes it; the unit reboots on this. A code the band does not
+        // the preset, as the vendor software writes it; the unit reboots on this. A code the band does not
         // offer is refused; the derived identifier follows the two pairs seen on an ADTD
         const codes = decodeModeList(this.props.get(DEV.RF_MODE_LIST)) ?? [];
         if (value.length !== 1 || !codes.includes(value[0])) return { fail: 0x05 };
@@ -405,7 +405,7 @@ export class FakeAdtq extends EventEmitter {
           break;
         case SDT_VEC.LEAVING:
         case SDT_VEC.NAK:
-          // the root-layer leave arrives as vector 8 in Workbench's dialect
+          // the root-layer leave arrives as vector 8 in the vendor software's dialect
           if (this.sessions.has(peerId)) {
             this.sessions.delete(peerId);
             this.emit('left', peerId);

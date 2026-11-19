@@ -39,8 +39,8 @@ Verified by evidence, not inference.
 | `0x0001` | str | **Channel name, writable** | Same value as `0x08fb`, both channels checked. Writing `"EDITED"` here on CH1 read back on `0x0001` within 6 ms and on `0x08fb` within 1.5 s, so this is the address the plugin writes and `0x08fb` mirrors it. |
 | `0x0102` | 1 | **Digital audio gain, dB** — signed, raw value = dB | 16 dB -> 9 dB moved it `0x10` -> `0x09`; a full 117-property diff of that change touched only this and the encryption byte, 0 unread. Negative confirmed separately: CH2 set to -8 dB reads `0xf8`. |
 | `0x0613` | 1 | **Audio mode** — `01` = Stereo, `00` = Mono (summed). Per channel. | Found by cross-channel comparison (CH2 mono was the only unexplained difference against CH3 == CH4, from 468 addresses, 0 unread), then confirmed by a prediction stated in advance: flipping CH3 to mono would move `0x02020613` `01` -> `00`. It did, while CH2 and CH4 held. |
-| `0x2000` | 1 | **Encryption** (`00` = off, `03` = on). Device-wide: WWB warns the setting applies to all channels, and all four channels read identically. | Three independent readings: `00` before it was ever touched, `03` with encryption on, `00` again after turning it off. A full 117-property diff of the on->off transition moved this address and **nothing else**, with 0 addresses unread. |
-| `0x0811` | 1 | **Transmit power** (enum index) | `00` = Normal, `01` = High, `02` = Low. Tracked the WWB setting across four transitions. A full-map diff of Low -> Normal moved this address and **nothing else** (1 change in 111 properties). |
+| `0x2000` | 1 | **Encryption** (`00` = off, `03` = on). Device-wide: the vendor software warns the setting applies to all channels, and all four channels read identically. | Three independent readings: `00` before it was ever touched, `03` with encryption on, `00` again after turning it off. A full 117-property diff of the on->off transition moved this address and **nothing else**, with 0 addresses unread. |
+| `0x0811` | 1 | **Transmit power** (enum index) | `00` = Normal, `01` = High, `02` = Low. Tracked the vendor software setting across four transitions. A full-map diff of Low -> Normal moved this address and **nothing else** (1 change in 111 properties). |
 | `0x0814`, `0x0884`, `0x0885` | 2 | **Power level, High vs not** | All three read 20 on High and 10 on both Normal and Low. They distinguish High from the other two but do NOT separate Normal from Low, so they cannot encode the setting on their own — `0x0811` does that. |
 | `0x0117` L, `0x0119` R | 4 | **Audio level, pair A**, dB, signed, post-gain | Live; moves only on the channel carrying audio. Mono made L and R identical in 41/41 samples and stereo split them again; right-only input dropped L to -85 while R held -18. ~12-14 dB under pair B on music and on idle noise alike, so average-like — that last part is a hypothesis. See "Audio levels". |
 | `0x0118` L, `0x011a` R | 4 | **Audio level, pair B**, dB, signed, post-gain | Same two predictions held (right-only: L -78, R -13). The highest of the three pairs, so peak-like — hypothesis. A gain change moves it; -255 on a channel with nothing connected. **Exposed** as the card's meters (`meters.af` / `meters.afR`), polled every 100 ms by default. |
@@ -63,13 +63,13 @@ Consistent with the evidence but NOT confirmed. Verify with
 
 ### TX power enum (`0x0811`) — complete
 
-| Index | WWB label | `0x0814` / `0x0884` / `0x0885` |
+| Index | Label | `0x0814` / `0x0884` / `0x0885` |
 |---|---|---|
 | `00` | Normal | 10 |
 | `01` | High | 20 |
 | `02` | Low | 10 |
 
-All three verified against the WWB display, across four transitions:
+All three verified against the vendor software display, across four transitions:
 initial (High) -> Normal -> Low -> Normal -> High. The High reading was confirmed by a
 prediction stated *before* the test (`0x0811` -> `01`, `0x0814` -> 20); both landed.
 
@@ -109,7 +109,7 @@ perfectly. It was still wrong — the next change (Normal -> Low) moved `0x0811`
 transition before believing an address.
 
 The third lesson cost the most time and had nothing to do with the device: a state was
-reported as "High" when WWB was actually displaying "Normal". The device had been
+reported as "High" when the vendor software was actually displaying "Normal". The device had been
 self-consistent throughout; the label was wrong. Before concluding that hardware is
 behaving contradictorily, re-verify what the control surface actually shows. The fix was
 to state a falsifiable prediction *before* the next test — `0x0811` -> `01` and
@@ -227,7 +227,7 @@ the byte as signed, not unsigned — an unsigned read reports 248 dB. Range is t
 do not assume any non-zero value means "on", and do not assume `01` is valid. Only these
 two values have been observed.
 
-WWB warns that the setting applies to **all channels**, and all four channels read the
+The vendor software warns that the setting applies to **all channels**, and all four channels read the
 same value. Whether the device stores one shared value or four replicated copies is
 untested; writing a single channel's copy would distinguish them, but that is a
 device-wide security setting and was not written here.
@@ -256,8 +256,7 @@ unanswered as UNKNOWN rather than absent.
 
 The SLP advert points at `tftp://<ip>/$.ddl`, which would name every property, but the
 ADTQ runs no TFTP server (and no open TCP ports at all), so it cannot be fetched from
-the device. Wireless Workbench ships the same data locally at
-`Wireless Workbench.app/Contents/Resources/Data/DDL.dat`, but it is an AES-encrypted ZIP.
+the device. The vendor software ships the same data locally, but as an AES-encrypted ZIP.
 Enumeration plus `watch` is the route used here.
 
 ## Added 2026-10-26: the settings shared with the Axient Digital receivers
@@ -288,16 +287,16 @@ transmitter roster.
 +17 refused with SET_FAIL 0x05. Exposed writable as `gain`, step 1 dB.
 
 **Operational preset, the RF block** (ADTD, 2026-10-26). A sweep of every device-class address
-before and after Workbench switched the unit from "SC narrowband" to "2-channel wideband" moved
+before and after the vendor software switched the unit from "SC narrowband" to "2-channel wideband" moved
 exactly these, besides the uptime (the unit rebooted) and the temperature-looking byte
-`0x01000024`; a decoded capture of Workbench then showed how it makes the change: **one SET of
+`0x01000024`; a decoded capture of the vendor software then showed how it makes the change: **one SET of
 `0x0107000b`** (value 45 for "SC narrowband"), followed by the unit's EVENT on the same address
 and its reboot.
 
 | Address | Before | After | Meaning |
 |---|---|---|---|
-| `0x0107000b` | `2d` (45) | `1f` (31) | **The operational preset, as a transmission-mode code.** This is what Workbench writes. **Exposed**, writable (`operationalPreset`); the unit reboots to apply it. Written live by the plugin's `preset` command (45 → 3, "Narrowband"): the unit restarted and read 3 back |
-| `0x0107000c` | — | — | the mode codes this band offers, **in Workbench's menu order**: ADTD K54 `45,46,32,31,3,2,5,0,1,10,9` (11 = the ADTD menu), ADTQ G57 `20,18,40,41,42,43,28,14,13,26,16,11,12,23,22` (15 = the ADTQ menu). u16 total length, u32 count, a type byte `07`, then u32 codes. Checks: 45 is entry 1 "SC narrowband" and 31 entry 4 "2-channel wideband" on the ADTD, 20 entry 1 "4-channel wideband, spatial diversity" on the ADTQ, and every "combined" entry lands on a 20 mW High entry of the power table |
+| `0x0107000b` | `2d` (45) | `1f` (31) | **The operational preset, as a transmission-mode code.** This is what the vendor software writes. **Exposed**, writable (`operationalPreset`); the unit reboots to apply it. Written live by the plugin's `preset` command (45 → 3, "Narrowband"): the unit restarted and read 3 back |
+| `0x0107000c` | — | — | the mode codes this band offers, **in the vendor software's menu order**: ADTD K54 `45,46,32,31,3,2,5,0,1,10,9` (11 = the ADTD menu), ADTQ G57 `20,18,40,41,42,43,28,14,13,26,16,11,12,23,22` (15 = the ADTQ menu). u16 total length, u32 count, a type byte `07`, then u32 codes. Checks: 45 is entry 1 "SC narrowband" and 31 entry 4 "2-channel wideband" on the ADTD, 20 entry 1 "4-channel wideband, spatial diversity" on the ADTQ, and every "combined" entry lands on a 20 mW High entry of the power table |
 | `0x01070052` | `05` | `03` | a derived preset identifier; a SET here is refused with SET_FAIL NOT_WRITABLE. Shown as `id` by the CLI, not exposed |
 | `0x0107000e`, `0x0107000f` | `02` | `01` | move with the preset (carriers and antennas in use?); not exposed |
 | `0x01070088` | — | — | **RF power table**, mode code → "Low (10 mW), Normal (20 mW), High (100 mW)" (31 → 10/40/126 mW; 18 → 10/40/200). u16 length, u32 count, `0e 0e`, then u32-length-prefixed key and label strings; the length counts its own four bytes. Shown as `rfPower` |
@@ -315,7 +314,7 @@ mute from a mix go to the carrier. Presets with "2 frequencies" or "4 frequencie
 one carrier; the rule is the same (a channel that answers `0x0804` is a carrier; one refused belongs
 to the nearest carrier below it) and is tested against the fake only for those.
 
-The capture also lists what Workbench subscribes to and reads at connect, including addresses
+The capture also lists what the vendor software subscribes to and reads at connect, including addresses
 outside every sweep so far: device classes `0x0120`, `0x0130`, `0x0140`, `0x01de`; channel objects
 `0x0f16`–`0x0f27`, `0x1000`–`0x1007`, `0x1605`–`0x1622`, and `0x4001` on channels up to 16. Most of
 the capture's small blocks (32/33/44 bytes, counters near 0x1000 from the first packet on) do not
@@ -344,16 +343,16 @@ for the plugin's card in any case.
 channel reads the new one (probed both ways, 15 s watch each). The first attempt looked ignored only
 because the read-back was immediate. The plugin writes `0x2000` and polls it for up to 4 s.
 
-**Input selection and analog sensitivity** (ADTD, 2026-10-27, decoded capture of Workbench):
+**Input selection and analog sensitivity** (ADTD, 2026-10-27, decoded capture of the vendor software):
 
 | Address | Values | Evidence |
 |---|---|---|
-| `0x017a` per channel | `00` Rear Panel, `01` Dante | Workbench SET `01` then `00` on channel 2, each answered by EVENTs on `0x017a` and `0x0179`. **Exposed**, writable (`inputSource`) |
+| `0x017a` per channel | `00` Rear Panel, `01` Dante | The vendor software SET `01` then `00` on channel 2, each answered by EVENTs on `0x017a` and `0x0179`. **Exposed**, writable (`inputSource`) |
 | `0x0179` per channel | `03` with Dante selected, `01` with Rear Panel; `02` on an ADTQ | the unit's state for the selection; read only |
-| `0x0612` per channel | `01` Line (+28 dBV FS), `00` Aux (+18 dBV FS) | Workbench SET `01` for Line on channel 1, EVENT back; `00` read on a channel on Aux in the 2026-09 notes. **Exposed**, writable (`analogSensitivity`) |
+| `0x0612` per channel | `01` Line (+28 dBV FS), `00` Aux (+18 dBV FS) | The vendor software SET `01` for Line on channel 1, EVENT back; `00` read on a channel on Aux in the 2026-09 notes. **Exposed**, writable (`analogSensitivity`) |
 | `0x01200006` | `01` while channel 1 is on Dante, `00` otherwise; unchanged by channel 2 | a Dante-side flag, not the selection |
 
 A detour worth recording: an earlier capture labelled "encryption on" held a SET of channel 1's
 `0x017a` = `01`, which is this input selection, so for a while `0x017a` was mistaken for an
-encryption trigger. Workbench sends `0x01d8` = `00` on a channel whenever its panel is opened
+encryption trigger. The vendor software sends `0x01d8` = `00` on a channel whenever its panel is opened
 (peak-hold reset or similar); it is not a setting.

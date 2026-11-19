@@ -365,7 +365,7 @@ export class AdtqDevice extends EventEmitter {
     return writeResult(r, r.after && r.after.length === 2 ? r.after.readUInt16BE(0) : null);
   }
 
-  /** The Device ID shown on the panel and in Workbench. */
+  /** The Device ID shown on the panel and in the vendor software. */
   async setDeviceName(name) {
     const session = this.requireSession();
     const clean = String(name).replace(/[^\x20-\x7e]/g, '').slice(0, P.DEVICE_NAME_MAX);
@@ -387,7 +387,7 @@ export class AdtqDevice extends EventEmitter {
   }
 
   /**
-   * The operational preset, as the transmission-mode code Workbench writes (one of the unit's
+   * The operational preset, as the transmission-mode code the vendor software writes (one of the unit's
    * RF_MODE_LIST). The unit reboots to apply it, so the read-back usually never comes: a SET that
    * is not refused is reported as taken with `restarting: true`, and the session will drop while
    * the unit restarts.

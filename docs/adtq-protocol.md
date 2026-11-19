@@ -2,7 +2,7 @@
 
 What this plugin speaks to the unit, in enough detail to debug it with a
 packet capture. Everything below was established on an operator-owned ADTQ
-("ADTQ G57 NACLOCK") from captures of Wireless Workbench 6 and from the
+("ADTQ G57 NACLOCK") from captures of the vendor software and from the
 Python tool in `ADTQ Mute/` this driver was ported from; the byte-level
 builders in `driver/acn/` are pinned to that tool's output by
 `__tests__/fixtures/acn-vectors.json`.
@@ -28,7 +28,7 @@ attribute list:
   last-resort derivation.
 - `acn-fctn` is the model. `acn-uacn` is ACN's "user-assigned name", but on
   Shure hardware nobody assigns it: the unit fills it with its model, its
-  band and sometimes a variant tag that Workbench shows nowhere. Heard on one
+  band and sometimes a variant tag that the vendor software shows nowhere. Heard on one
   segment (2026-10-07): `ADTQ G57 NACLOCK`, `ADTD K54 NACLOCK`,
   `ULXD4Q G50 REV5`, `ULXD4D G50 REV2`, `AD4Q A`, `AD4D B`, `P10T G10`,
   `AD600`. The plugin shows the model and band (`ADTQ G57`) and drops the
@@ -36,7 +36,7 @@ attribute list:
 - Three traps: the service type is `esta.dmp`, not `esta.sdt`; the unit
   answers to **UDP/8427 on the requester's address**, not to the source port
   of the request, so the plugin binds 8427 (and an ephemeral socket as a
-  fallback when Workbench owns it); and the unit **only answers a request
+  fallback when the vendor software owns it); and the unit **only answers a request
   sent to the multicast group** — the same request unicast to its own
   address is dropped. Looking up one unit therefore asks the group as well
   and takes the reply that names it (observed on "ADTQ G57 NACLOCK": six
@@ -53,13 +53,13 @@ no TFTP server. The property map was enumerated instead.
 
 Every datagram is an ACN root layer (`00 10 00 00 "ASC-E1.17" 00 00 00`,
 then a PDU with vector 1 = SDT and the sender's CID) carrying SDT PDUs.
-`driver/acn/session.js` reproduces Workbench's session exactly, in this
+`driver/acn/session.js` reproduces the vendor software's session exactly, in this
 order:
 
 | Step | Who | What |
 |---|---|---|
 | 1 | plugin | SLP component advert, multicast, three pulses 120 ms apart — the unit builds its table of controllers from these |
-| 2 | plugin | wait 3 s (Workbench's advert → JOIN gap) |
+| 2 | plugin | wait 3 s (the vendor software's advert → JOIN gap) |
 | 3 | plugin | **JOIN** (vec 4): member CID = the unit's CID, our channel `0x8000 \| rand<<4`, reliable sequence base = our channel |
 | 4 | unit | **JOIN_ACCEPT** (vec 6), last two bytes = the unit's reciprocal channel |
 | 5 | unit | reciprocal **JOIN** on its own channel; plugin answers **JOIN_ACCEPT** |
@@ -104,7 +104,7 @@ Each block is `01 01 <len16> <nonce8> <ctr8> <ciphertext> <tag4>`:
   counter block = nonce ‖ BE64(block index), keystream taken from byte
   position `pos` of the stream, `pos` advancing by the plaintext length. The
   on-wire `ctr8` is `ceil(pos/16)` while the keystream uses `floor` — that
-  is what Workbench does and what the unit checks.
+  is what the vendor software does and what the unit checks.
 - the tag is SKIP32 (Shure's 12-round variant, key = first 10 key bytes) of
   the CRC32 of everything before it.
 
@@ -121,7 +121,7 @@ DMP PDUs inside a block: `[70|len] [vector] [02] [address BE32] [value…]`.
 | 1 | GET |
 | 2 | SET (the unit echoes it) |
 | 3 | GET_REPLY |
-| 4 | EVENT — the unit pushes a changed value (after a SET, and when the panel or Workbench changes something) |
+| 4 | EVENT — the unit pushes a changed value (after a SET, and when the panel or the vendor software changes something) |
 | 9 | GET_FAIL, reason `02` — the address does not exist |
 | 10 | SET_FAIL |
 
@@ -170,7 +170,7 @@ ASCII. Integers are big-endian; gain is two's complement (`0xf8` = −8 dB).
    wrong association, or the sequence base was off by one (the unit NAKs a
    phantom gap forever).
 6. **Associated, SETs "succeed", nothing changes.** Another controller
-   (Workbench) holds the unit; or the SET went out before the write gate.
+   (the vendor software) holds the unit; or the SET went out before the write gate.
    The read-back reports NOT APPLIED rather than success.
 7. **SET answered with SET_FAIL.** Not silent, but easy to lose: the reason
    byte is the PDU's only data (`0x04` = NOT_WRITABLE, seen on the channel

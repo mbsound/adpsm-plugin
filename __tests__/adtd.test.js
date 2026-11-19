@@ -107,7 +107,7 @@ test('gain is written in whole dB within the limits the unit enforces, and refus
   assert.equal(r.after.readInt8(0), -20, 'the unit keeps what it had');
 });
 
-test('the operational preset is the mode code Workbench writes, one of the list the band offers', async (t) => {
+test('the operational preset is the mode code the vendor software writes, one of the list the band offers', async (t) => {
   const fake = await startFake(t, { fctn: 'ADTD', uacn: 'ADTD K54 NACLOCK' });
   const device = await connect(t, fake);
   const before = await device.readDevice();

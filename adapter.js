@@ -62,7 +62,7 @@ const MIN_METER_MS = 50;
 const MAX_METER_MS = 1000;
 // how long the SLP browse keeps running after the shell last asked
 const BROWSE_IDLE_MS = 90_000;
-// the fake needs none of Workbench's advert-to-JOIN pause
+// the fake needs none of the vendor software's advert-to-JOIN pause
 const SIMULATED_SESSION = { advertGapMs: 5, joinDelayMs: 50, writeGateMs: 50, connectTimeoutMs: 5000, requestTimeoutMs: 150 };
 
 const isNum = (v) => typeof v === 'number' && Number.isFinite(v);
@@ -260,7 +260,7 @@ const propertyDescriptors = (model, modeList) => {
     { id: 'fanMode', scope: 'device', access: 'readWrite', stateBinding: { key: UNIT_KEY, path: ['fanMode'] }, value: { type: 'enum', options: [...FAN_MODES] } },
     { id: 'powerLock', scope: 'device', access: 'readWrite', stateBinding: { key: UNIT_KEY, path: ['powerLock'] }, value: { type: 'boolean' } },
     { id: 'panelLock', scope: 'device', access: 'readWrite', stateBinding: { key: UNIT_KEY, path: ['panelLock'] }, value: { type: 'boolean' } },
-    // device-wide, written as Workbench writes it (the mode code); the unit reboots to apply a
+    // device-wide, written as the vendor software writes it (the mode code); the unit reboots to apply a
     // change and every channel goes off air for the restart. The options are the presets this
     // unit's band offers, read from the unit at open.
     { id: 'operationalPreset', scope: 'device', access: 'readWrite', stateBinding: { key: UNIT_KEY, path: ['operationalPreset'] }, value: { type: 'enum', options: P.presetMenu(model, modeList).map((p) => p.name) } },
@@ -453,7 +453,7 @@ class AdtqMonitoringAdapter {
     for (const [key, value] of Object.entries(props)) if (value !== null) ch[key] = value;
   }
 
-  /** An EVENT the unit pushed: someone changed it on the panel or in Workbench. */
+  /** An EVENT the unit pushed: someone changed it on the panel or in the vendor software. */
   applyChange({ channel, key, value }) {
     if (this.closed) return;
     if (channel === null) {
